@@ -1,0 +1,306 @@
+<!DOCTYPE html>  <html>  
+<head>  
+    <meta charset="UTF-8" />  
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />  
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>  
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>  
+    <title>wasi TV - Pro Player</title>  
+    <style>  
+        ::-webkit-scrollbar { display: none; }  
+        * { -webkit-touch-callout: none; user-select: none; outline:none; box-sizing: border-box; }  
+        body { margin: 0; background: #000; font-family: Arial, sans-serif; color: #fff; text-align: center; }  .cont { position: sticky; top: 0; z-index: 1000; background: #000; width: 100%; border-bottom: 2px solid red; }  
+      
+    .player-wrapper { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; overflow: hidden; }  
+    .player-wrapper:fullscreen { width: 100vw; height: 100vh; }  
+
+    #videoPlayer { width: 100%; height: 100%; object-fit: contain; background: #000; transition: 0.3s; }  
+      
+    .my-photo {   
+        position: absolute; top: 10px; left: 10px; width: 45px; height: 45px;   
+        z-index: 99; border-radius: 50%; border: 2px solid white;   
+        box-shadow: 0 0 10px rgba(0,0,0,0.5); object-fit: cover; pointer-events: none;  
+    }  
+
+    .player-controls {  
+        position: absolute; bottom: 0; left: 0; right: 0;  
+        background: linear-gradient(transparent, rgba(0,0,0,0.9));  
+        padding: 5px 10px 15px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px;  
+        opacity: 0; transition: opacity 0.4s; z-index: 2147483647;  
+        pointer-events: none;  
+    }  
+    .player-controls.show { opacity: 1; pointer-events: auto; }  
+
+    .progress-container { width: 95%; height: 5px; background: rgba(255,255,255,0.2); border-radius: 5px; cursor: pointer; position: relative; margin-bottom: 5px; }  
+    .progress-bar { height: 100%; background: red; width: 0%; border-radius: 5px; position: relative; }  
+    .time-info { font-size: 10px; color: #ccc; margin-bottom: 5px; display: flex; justify-content: space-between; width: 95%; }  
+      
+    .ctrl-btns-row { display: flex; justify-content: center; gap: 8px; width: 100%; }  
+    .ctrl-btn { background: rgba(0,0,0,0.7); border: 1px solid #555; color: #fff; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }  
+    .ctrl-btn:active { background: red; border-color: yellow; }  
+    .ctrl-btn svg { width: 16px; height: 16px; }  
+
+    #qualityMenu {  
+        position: absolute; bottom: 85px; right: 20px; background: rgba(0,0,0,0.95);  
+        border: 1px solid #444; border-radius: 8px; display: none; flex-direction: column;  
+        z-index: 2147483647; padding: 10px; min-width: 110px;  
+    }  
+    #qualityMenu button { background: none; border: none; color: white; padding: 10px; text-align: center; cursor: pointer; font-size: 13px; border-bottom: 1px solid #333; }  
+
+    .control-panel { background: #111; padding: 10px; display: flex; flex-direction: column; gap: 5px; }  
+    .row { display: flex; gap: 5px; }  
+    .input-group { text-align: left; flex: 1; }  
+    .input-group label { font-size: 9px; color: red; font-weight: bold; display: block; }  
+    input { background: #222; border: 1px solid #444; color: #fff; padding: 6px; border-radius: 4px; width: 100%; font-size: 11px; }  
+      
+    .btn-row { display: flex; gap: 5px; margin-top: 5px; }  
+    .btn { border: none; padding: 8px; flex: 1; border-radius: 4px; font-weight: bold; color: white; cursor: pointer; font-size: 11px; }  
+    .btn-live { background: #28a745; }  
+    .btn-rewind { background: red; }  
+    .btn-skip { background: #444; }  
+
+    #root button { display: block; margin: 8px; padding: 2px; height: 75px; width: 75px; border-radius: 50%; background: transparent; border: 2px solid #211f1f; }  
+    .print { height: 60px; width: 60px; border-radius: 50%; object-fit: contain; background: #fff; }  
+    .box.flex { display: flex; justify-content: center; flex-wrap: wrap; padding: 10px; }  
+    .marquee { background: #000; border: 2px solid red; width: 95%; margin: 10px auto; border-radius: 6px; display: flex; align-items: center; overflow: hidden; }  
+    .marquee span { background: red; color: #fff; padding: 5px 10px; font-weight: bold; }  
+    marquee { color: #fff; font-weight: bold; flex: 1; }  
+    #status { padding: 5px; color: #ffc107; font-size: 12px; font-weight: bold; }  
+    .extra-btns { display: flex; gap: 8px; justify-content: center; padding: 12px; }  
+    .btn-sm { padding: 8px 14px; border-radius: 20px; border: none; font-weight: bold; font-size: 10px; color:#fff; cursor: pointer; }  
+    .btn-update { background:#ffc107; color:#000; width:94%; margin:10px auto; display:block; border-radius:25px; height:40px; font-weight: bold; border:none; cursor: pointer; }  
+</style>
+
+</head>  
+<body>  <div class="cont">  
+    <div class="player-wrapper" id="pWrap" onclick="showControlsTemporarily()">  
+        <img src="https://i.postimg.cc/bwrwtNC3/20251105-090654.jpg" class="my-photo">  
+        <video id="videoPlayer" poster="https://i.postimg.cc/bwrwtNC3/20251105-090654.jpg" playsinline></video>  <div class="player-controls" id="ctrlBox">  
+        <div class="time-info">  
+            <span id="currentTime">00:00</span>  
+            <span id="totalDuration">00:00</span>  
+        </div>  
+        <div class="progress-container" id="progressContainer" onclick="seek(event)">  
+            <div class="progress-bar" id="progressBar"></div>  
+        </div>  
+          
+        <div class="ctrl-btns-row">  
+            <button class="ctrl-btn" onclick="togglePlay(event)"><i data-feather="play"></i></button>  
+            <button class="ctrl-btn" onclick="skipTime(-15, event)"><i data-feather="rewind"></i></button>  
+            <button class="ctrl-btn" onclick="skipTime(15, event)"><i data-feather="fast-forward"></i></button>  
+            <button class="ctrl-btn" onclick="toggleMute(event)"><i data-feather="volume-2"></i></button>  
+            <button class="ctrl-btn" onclick="cycleSize(event)"><i data-feather="maximize-2"></i></button>  
+            <button class="ctrl-btn" onclick="toggleRotate(event)"><i data-feather="refresh-cw"></i></button>  
+            <button class="ctrl-btn" onclick="toggleFullScreen(event)"><i data-feather="maximize"></i></button>  
+            <button class="ctrl-btn" onclick="toggleQualityMenu(event)"><i data-feather="settings"></i></button>  
+        </div>  
+    </div>  
+    <div id="qualityMenu"></div>  
+</div>  
+
+<div class="control-panel">  
+    <div class="row">  
+        <div class="input-group">  
+            <label>STREAMING ID</label>  
+            <input type="text" id="streamID" placeholder="e.g. 122M">  
+        </div>  
+        <div class="input-group" style="flex: 0.4;">  
+            <label>PORT</label>  
+            <input type="text" id="streamPort" value="8087">  
+        </div>  
+    </div>  
+    <div class="row">  
+        <div class="input-group">  
+            <label>DATE & TIME (Rewind Only)</label>  
+            <input type="datetime-local" id="rewindTime">  
+        </div>  
+    </div>  
+    <div class="btn-row">  
+        <button class="btn btn-live" onclick="processAction(true)">▶️ LIVE</button>  
+        <button class="btn btn-skip" onclick="skipTime(-15)">⏪ 15s</button>  
+        <button class="btn btn-skip" onclick="skipTime(15)">15s ⏩</button>  
+        <button class="btn btn-rewind" onclick="processAction(false)">📅 DVR</button>  
+    </div>  
+</div>
+
+</div>  <div class="marquee">  
+    <span>نوٹ:</span>  
+    <marquee scrollamount="5">Sabar Ali Player - Today's New Channels Only</marquee>  
+</div>  <div class="extra-btns">  
+    <button class="btn-sm" style="background: #20c997;" onclick="filterChannels('new')">✨ WHAT'S NEW</button>  
+    <button class="btn-sm" style="background: #ff4444;" onclick="filterChannels('removed')">🚫 REMOVED</button>  
+    <button class="btn-sm" style="background: #555;" onclick="displayAll()">🌐 ALL CHANNELS</button>  
+</div>  <button class="btn-update" onclick="loadFromPHP()">🔄 UPDATE SERVER LIST (PHP)</button>
+
+<div id="status">Ready!</div>  
+<div id="root" class="box flex"></div>  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>  <script>  
+    feather.replace();  
+    const video = document.getElementById('videoPlayer');  
+    const pWrap = document.getElementById('pWrap');  
+    const ctrlBox = document.getElementById('ctrlBox');  
+    const progressBar = document.getElementById('progressBar');  
+    const currentTimeEl = document.getElementById('currentTime');  
+    const durationEl = document.getElementById('totalDuration');  
+      
+    let hls = new Hls();  
+    let allChannels = [];  
+    let lastToken = "";  
+    let hideTimeout;  
+  
+    video.addEventListener('timeupdate', () => {  
+        const percent = (video.currentTime / video.duration) * 100;  
+        progressBar.style.width = percent + '%';  
+        currentTimeEl.innerText = formatTime(video.currentTime);  
+        if(!isNaN(video.duration)) durationEl.innerText = formatTime(video.duration);  
+    });  
+  
+    function formatTime(time) {  
+        const min = Math.floor(time / 60);  
+        const sec = Math.floor(time % 60);  
+        return `${min < 10 ? '0' : ''}${min}:${sec < 10 ? '0' : ''}${sec}`;  
+    }  
+  
+    function seek(e) {  
+        e.stopPropagation();  
+        const rect = document.getElementById('progressContainer').getBoundingClientRect();  
+        const pos = (e.pageX - rect.left) / rect.width;  
+        video.currentTime = pos * video.duration;  
+    }  
+  
+    function showControlsTemporarily() {  
+        ctrlBox.classList.add('show');  
+        clearTimeout(hideTimeout);  
+        hideTimeout = setTimeout(() => {  
+            ctrlBox.classList.remove('show');  
+            $('#qualityMenu').hide();  
+        }, 3500);  
+    }  
+  
+    function loadStream(url) {  
+        if (Hls.isSupported()) {  
+            hls.destroy();  
+            hls = new Hls();  
+            hls.loadSource(url);  
+            hls.attachMedia(video);  
+            hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play(); updateQualityLevels(); });  
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {  
+            video.src = url;  
+        }  
+    }  
+  
+    function updateQualityLevels() {  
+        let levels = hls.levels;  
+        let menuHtml = `<button onclick="setQuality(-1)">Auto</button>`;  
+        levels.forEach((level, index) => {  
+            menuHtml += `<button onclick="setQuality(${index})">${level.height}p</button>`;  
+        });  
+        $('#qualityMenu').html(menuHtml);  
+    }  
+  
+    function setQuality(index) { hls.currentLevel = index; $('#qualityMenu').hide(); }  
+    function togglePlay(e) { e.stopPropagation(); video.paused ? video.play() : video.pause(); }  
+    function skipTime(t, e) { if(e) e.stopPropagation(); video.currentTime += t; }  
+    function toggleMute(e) { e.stopPropagation(); video.muted = !video.muted; }  
+    function toggleQualityMenu(e) { e.stopPropagation(); $('#qualityMenu').toggle(); }  
+      
+    function cycleSize(e) {  
+        e.stopPropagation();  
+        const modes = ['contain', 'cover', 'fill'];  
+        const currentMode = video.style.objectFit || 'contain';  
+        let nextIndex = (modes.indexOf(currentMode) + 1) % modes.length;  
+        video.style.objectFit = modes[nextIndex];  
+    }  
+  
+    function toggleRotate(e) {  
+        e.stopPropagation();  
+        if (screen.orientation && screen.orientation.lock) {  
+            if (screen.orientation.type.includes('portrait')) screen.orientation.lock('landscape');  
+            else screen.orientation.unlock();  
+        }  
+    }  
+  
+    function toggleFullScreen(e) {  
+        e.stopPropagation();  
+        if (!document.fullscreenElement) {  
+            if (pWrap.requestFullscreen) pWrap.requestFullscreen();  
+            else if (pWrap.webkitRequestFullscreen) pWrap.webkitRequestFullscreen();  
+        } else {  
+            if (document.exitFullscreen) document.exitFullscreen();  
+        }  
+    }  
+  
+    function init() {  
+        const cached = localStorage.getItem('wasi_tv_cache');  
+        if (cached) { allChannels = JSON.parse(cached); displayAll(); } else { loadFromPHP(); }  
+    }  
+  
+    function loadFromPHP() {  
+        $('#status').text("Updating...");  
+        fetch("https://corsproxy.io/?https://wasitv-pro.site/jazzm3u.php").then(r => r.text()).then(data => {  
+            const lines = data.split('\n');  
+            const newList = [];  
+            for (let i = 0; i < lines.length; i++) {  
+                if (lines[i].includes('#EXTINF')) {  
+                    let logo = lines[i].match(/tvg-logo="([^"]+)"/)?.[1] || "https://bit.ly/wasitvp";  
+                    let url = lines[i + 1]?.trim();  
+                    if (url?.startsWith('http')) newList.push({ logo, url });  
+                }  
+            }  
+            // --- YOUR REQUESTED LOGIC ADDED HERE ---
+            localStorage.setItem('wasi_tv_backup', JSON.stringify(allChannels));
+            allChannels = newList;  
+            localStorage.setItem('wasi_tv_cache', JSON.stringify(allChannels));  
+            displayAll();  
+            $('#status').text("Update Successful! (" + allChannels.length + " Channels)");
+        });  
+    }  
+
+    // NEW CHANNEL FILTER LOGIC (FROM YOUR CODE)
+    function filterChannels(type) {
+        if (!allChannels.length) return;
+        let old = JSON.parse(localStorage.getItem('wasi_tv_backup') || "[]");
+        let res = (type === 'new') 
+            ? allChannels.filter(n => !old.some(o => o.url === n.url))
+            : old.filter(o => !allChannels.some(n => n.url === o.url));
+        
+        $('#root').empty();
+        res.forEach(c => {
+            let id = c.url.includes('/jazzauth/') ? c.url.split('/jazzauth/')[1].split('/')[0] : "";
+            let port = c.url.match(/:(\d+)\//)?.[1] || "8087";
+            $('#root').append(`<button onclick="playChannel('${c.url}', '${id}', '${port}')"><img class="print" src="${c.logo}"></button>`);
+        });
+        $('#status').text(res.length + " Channels Found");
+    }
+
+    function displayAll() {
+        $('#status').text("All Channels");
+        renderList(allChannels);
+    }
+
+    function renderList(list) {
+        $('#root').empty();
+        list.forEach(c => {
+            let id = c.url.split('/jazzauth/')[1]?.split('/')[0] || "";  
+            let port = c.url.match(/:(\d+)\//)?.[1] || "8087";  
+            $('#root').append(`<button onclick="playChannel('${c.url}', '${id}', '${port}')"><img class="print" src="${c.logo}"></button>`);  
+        });
+    }
+  
+    function playChannel(url, id, port) {  
+        $('#streamID').val(id); $('#streamPort').val(port);  
+        lastToken = url.includes('?') ? url.split('?')[1] : "";  
+        loadStream(url);  
+        window.scrollTo({top: 0, behavior: 'smooth'});  
+    }  
+  
+    function processAction(isLive) {  
+        let id = $('#streamID').val(); let port = $('#streamPort').val();  
+        let finalUrl = isLive ?   
+            `https://cdn07isb.tamashaweb.com:${port}/jazzauth/${id}/playlist.m3u8` :   
+            `https://cdn07isb.tamashaweb.com:${port}/jazzauth/${id}/chunks_dvr_range-${Math.floor(new Date($('#rewindTime').val()).getTime() / 1000)}-7200.m3u8`;  
+        if(lastToken) finalUrl += "?" + lastToken;  
+        loadStream(finalUrl);  
+    }  
+  
+    init();  
+</script>  </body>  
+</html>
